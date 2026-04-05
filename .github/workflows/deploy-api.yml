@@ -62,6 +62,9 @@ jobs:
             --port=8080 \
             --set-env-vars=LITELLM_URL=${{ env.LITELLM_URL }},LITELLM_MODEL=inspector \
             --update-secrets=LITELLM_API_KEY=LITELLM_VIRTUAL_KEY:latest \
+            --vpc-egress=all-traffic \
+            --network=default \
+            --subnet=default \
             --quiet
 
       - name: Print live URL
