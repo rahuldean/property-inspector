@@ -134,6 +134,19 @@ resource "google_project_iam_member" "run_cloudsql_client" {
   member  = "serviceAccount:${google_service_account.cloud_run.email}"
 }
 
+# Required for Direct VPC Egress on the API service
+resource "google_project_iam_member" "run_network_user" {
+  project = var.project_id
+  role    = "roles/compute.networkUser"
+  member  = "serviceAccount:${google_service_account.cloud_run.email}"
+}
+
+resource "google_project_iam_member" "cloudrun_agent_network_user" {
+  project = var.project_id
+  role    = "roles/compute.networkUser"
+  member  = "serviceAccount:service-${var.project_number}@serverless-robot-prod.iam.gserviceaccount.com"
+}
+
 # --------------------------------------------------------------------------
 # Workload Identity Federation for GitHub Actions
 # --------------------------------------------------------------------------
