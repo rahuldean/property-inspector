@@ -22,7 +22,20 @@ terraform init
 terraform apply
 ```
 
-Note: Use a `terraform.tfvars` file to set `project_id` and `region`.
+Note: Use a `terraform.tfvars` file to set variables. `project_number` is required (no default) -- find it on the GCP Console home page.
+
+```hcl
+# terraform/terraform.tfvars  (gitignored)
+project_id     = "your-project-id"
+region         = "us-east1"
+project_number = "123456789012"
+```
+
+Enable required APIs before running `terraform apply`:
+
+```bash
+gcloud services enable compute.googleapis.com bigquery.googleapis.com --project=YOUR_PROJECT_ID
+```
 
 After apply, copy the output values into your GitHub repository secrets:
 
@@ -60,9 +73,15 @@ echo -n "sk-virtual-..." | gcloud secrets versions add LITELLM_VIRTUAL_KEY --dat
 
 Then trigger the `deploy-api` workflow to pick up the new secret.
 
+## BigQuery logging
+
+Every `/analyze` and `/compare` call is logged asynchronously to `property_inspector.inspections` in BigQuery. The write happens in a background goroutine after the response is sent -- it never blocks the API. If `GOOGLE_CLOUD_PROJECT` is unset (local dev), logging is skipped silently.
+
+Schema: `id`, `room_name`, `floor_unit`, `endpoint`, `model_used`, `overall_condition`, `before_issue_count`, `after_issue_count`, `response_time_ms`, `error`, `inspected_at`. For `/compare`, both `before_issue_count` and `after_issue_count` are populated so change can be computed at query time (`after - before`).
+
 ## API
 
-Both services require Cloud Run authentication. Callers must include an identity token:
+`property-inspector-api` requires Cloud Run authentication. Callers must include an identity token:
 
 ```bash
 TOKEN=$(gcloud auth print-identity-token)
@@ -118,4 +137,6 @@ result, err := client.AnalyzeRoom(ctx, "photo.jpg", inspector.RoomMeta{
 ```
 
 ## FAQ
-1. [LiteLLM Bug]: There is an existing [issue](https://github.com/BerriAI/litellm/issues/23741#issuecomment-4122638733) that throws `vector_store_ids: Extra inputs are not permitted`. Follow the issue for the proposed work around.
+
+**Why is LiteLLM pinned to a specific version?**
+`main-latest` tracks the raw tip of LiteLLM's main branch and picks up unreleased bugs. The image is pinned to `v1.81.3-stable` (LiteLLM's own curated tag) to avoid issues like `vector_store_ids: Extra inputs are not permitted` that appeared in recent main builds.
