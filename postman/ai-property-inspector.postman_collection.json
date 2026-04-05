@@ -1,0 +1,95 @@
+{
+	"info": {
+		"name": "ai-property-inspector",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:6000"
+		}
+	],
+	"item": [
+		{
+			"name": "Health Check",
+			"request": {
+				"method": "GET",
+				"url": {
+					"raw": "{{base_url}}/health",
+					"host": ["{{base_url}}"],
+					"path": ["health"]
+				}
+			}
+		},
+		{
+			"name": "Analyze Room",
+			"request": {
+				"method": "POST",
+				"url": {
+					"raw": "{{base_url}}/analyze",
+					"host": ["{{base_url}}"],
+					"path": ["analyze"]
+				},
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "image",
+							"type": "file",
+							"src": "",
+							"description": "Select a room photo (jpg/png/webp)"
+						},
+						{
+							"key": "room_name",
+							"value": "Kitchen",
+							"type": "text"
+						},
+						{
+							"key": "floor_unit",
+							"value": "Unit 4B",
+							"type": "text"
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "Compare Inspections",
+			"request": {
+				"method": "POST",
+				"url": {
+					"raw": "{{base_url}}/compare",
+					"host": ["{{base_url}}"],
+					"path": ["compare"]
+				},
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "before",
+							"type": "file",
+							"src": "",
+							"description": "Select the BEFORE inspection photo"
+						},
+						{
+							"key": "after",
+							"type": "file",
+							"src": "",
+							"description": "Select the AFTER inspection photo"
+						},
+						{
+							"key": "room_name",
+							"value": "Living Room",
+							"type": "text"
+						},
+						{
+							"key": "floor_unit",
+							"value": "Unit 4B",
+							"type": "text"
+						}
+					]
+				}
+			}
+		}
+	]
+}
