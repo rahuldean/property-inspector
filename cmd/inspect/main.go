@@ -8,7 +8,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/labmox/ai-property-inspector-service/inspector"
+	"github.com/rahuldean/property-inspector/inspector"
 )
 
 func main() {

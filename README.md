@@ -1,4 +1,5 @@
 # Property Inspector Service
+[![property-inspector-service](https://github.com/rahuldean/property-inspector/actions/workflows/ci.yml/badge.svg)](https://github.com/rahuldean/property-inspector/actions/workflows/ci.yml)
 
 Analyzes property inspection photos using vision models via a LiteLLM proxy. Upload a room photo and get back a structured list of issues. Upload before/after photos to see what got fixed and what didn't.
 

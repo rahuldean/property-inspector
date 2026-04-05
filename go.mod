@@ -1,3 +1,3 @@
-module github.com/labmox/ai-property-inspector-service
+module github.com/rahuldean/property-inspector
 
 go 1.22
