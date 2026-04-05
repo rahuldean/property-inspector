@@ -57,7 +57,6 @@ jobs:
             --min-instances=0 \
             --max-instances=5 \
             --port=4000 \
-            --ingress=internal \
             --allow-unauthenticated \
             --add-cloudsql-instances=${{ secrets.GCP_PROJECT_ID }}:${{ secrets.GCP_REGION }}:litellm-postgres \
             --update-secrets=LITELLM_MASTER_KEY=LITELLM_MASTER_KEY:latest,DATABASE_URL=LITELLM_DATABASE_URL:latest \
