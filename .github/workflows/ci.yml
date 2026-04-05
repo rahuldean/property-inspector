@@ -1,4 +1,4 @@
-name: ai-property-inspector-service
+name: property-inspector-service
 
 on:
   workflow_dispatch:
@@ -23,6 +23,3 @@ jobs:
 
       - name: Test
         run: go test ./...
-
-      - name: Docker build
-        run: docker build -t ai-property-inspector-service .
