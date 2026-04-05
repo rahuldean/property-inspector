@@ -134,17 +134,48 @@ resource "google_project_iam_member" "run_cloudsql_client" {
   member  = "serviceAccount:${google_service_account.cloud_run.email}"
 }
 
-# Required for Direct VPC Egress on the API service
-resource "google_project_iam_member" "run_network_user" {
-  project = var.project_id
-  role    = "roles/compute.networkUser"
-  member  = "serviceAccount:${google_service_account.cloud_run.email}"
+# --------------------------------------------------------------------------
+# BigQuery for inspection logging
+# --------------------------------------------------------------------------
+
+resource "google_bigquery_dataset" "property_inspector" {
+  dataset_id  = "property_inspector"
+  location    = "us-east1"
+  description = "Inspection results logged by the property inspector API"
 }
 
-resource "google_project_iam_member" "cloudrun_agent_network_user" {
+resource "google_bigquery_table" "inspections" {
+  dataset_id          = google_bigquery_dataset.property_inspector.dataset_id
+  table_id            = "inspections"
+  deletion_protection = false
+
+  schema = jsonencode([
+    { name = "id",                 type = "STRING",    mode = "REQUIRED" },
+    { name = "room_name",          type = "STRING",    mode = "NULLABLE" },
+    { name = "floor_unit",         type = "STRING",    mode = "NULLABLE" },
+    { name = "endpoint",           type = "STRING",    mode = "REQUIRED" },
+    { name = "model_used",         type = "STRING",    mode = "NULLABLE" },
+    { name = "overall_condition",  type = "STRING",    mode = "NULLABLE" },
+    { name = "before_issue_count", type = "INTEGER",   mode = "NULLABLE" },
+    { name = "after_issue_count",  type = "INTEGER",   mode = "NULLABLE" },
+    { name = "response_time_ms",   type = "INTEGER",   mode = "REQUIRED" },
+    { name = "error",              type = "BOOLEAN",   mode = "REQUIRED" },
+    { name = "inspected_at",       type = "TIMESTAMP", mode = "REQUIRED" },
+  ])
+}
+
+# Write rows to this dataset only, not all BQ tables in the project
+resource "google_bigquery_dataset_iam_member" "run_bq_writer" {
+  dataset_id = google_bigquery_dataset.property_inspector.dataset_id
+  role       = "roles/bigquery.dataEditor"
+  member     = "serviceAccount:${google_service_account.cloud_run.email}"
+}
+
+# Required to execute insert jobs
+resource "google_project_iam_member" "run_bq_job_user" {
   project = var.project_id
-  role    = "roles/compute.networkUser"
-  member  = "serviceAccount:service-${var.project_number}@serverless-robot-prod.iam.gserviceaccount.com"
+  role    = "roles/bigquery.jobUser"
+  member  = "serviceAccount:${google_service_account.cloud_run.email}"
 }
 
 # --------------------------------------------------------------------------
