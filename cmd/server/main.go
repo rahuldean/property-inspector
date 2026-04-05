@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"time"
 
+	"cloud.google.com/go/bigquery"
 	"github.com/rahuldean/property-inspector/inspector"
 )
 
@@ -132,7 +133,6 @@ func handleAnalyze(client *inspector.Client, model string, maxUploadMB int64, bq
 		json.NewEncoder(w).Encode(result)
 
 		if bqLogger != nil {
-			n := int64(len(result.Issues))
 			bqLogger.LogAsync(inspectionRow{
 				ID:               newUUID(),
 				RoomName:         meta.RoomName,
@@ -140,7 +140,7 @@ func handleAnalyze(client *inspector.Client, model string, maxUploadMB int64, bq
 				Endpoint:         "/analyze",
 				ModelUsed:        model,
 				OverallCondition: result.OverallCondition,
-				AfterIssueCount:  &n,
+				AfterIssueCount:  bigquery.NullInt64{Int64: int64(len(result.Issues)), Valid: true},
 				ResponseTimeMs:   elapsed,
 				Error:            false,
 				InspectedAt:      meta.InspectedAt,
@@ -220,8 +220,6 @@ func handleCompare(client *inspector.Client, model string, maxUploadMB int64, bq
 		json.NewEncoder(w).Encode(result)
 
 		if bqLogger != nil {
-			before := int64(len(result.BeforeAnalysis.Issues))
-			after := int64(len(result.AfterAnalysis.Issues))
 			bqLogger.LogAsync(inspectionRow{
 				ID:               newUUID(),
 				RoomName:         meta.RoomName,
@@ -229,8 +227,8 @@ func handleCompare(client *inspector.Client, model string, maxUploadMB int64, bq
 				Endpoint:         "/compare",
 				ModelUsed:        model,
 				OverallCondition: result.AfterAnalysis.OverallCondition,
-				BeforeIssueCount: &before,
-				AfterIssueCount:  &after,
+				BeforeIssueCount: bigquery.NullInt64{Int64: int64(len(result.BeforeAnalysis.Issues)), Valid: true},
+				AfterIssueCount:  bigquery.NullInt64{Int64: int64(len(result.AfterAnalysis.Issues)), Valid: true},
 				ResponseTimeMs:   elapsed,
 				Error:            false,
 				InspectedAt:      meta.InspectedAt,

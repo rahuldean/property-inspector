@@ -22,8 +22,8 @@ type inspectionRow struct {
 	Endpoint         string    `bigquery:"endpoint"`
 	ModelUsed        string    `bigquery:"model_used"`
 	OverallCondition string    `bigquery:"overall_condition"`
-	BeforeIssueCount *int64    `bigquery:"before_issue_count"`
-	AfterIssueCount  *int64    `bigquery:"after_issue_count"`
+	BeforeIssueCount bigquery.NullInt64 `bigquery:"before_issue_count"`
+	AfterIssueCount  bigquery.NullInt64 `bigquery:"after_issue_count"`
 	ResponseTimeMs   int64     `bigquery:"response_time_ms"`
 	Error            bool      `bigquery:"error"`
 	InspectedAt      time.Time `bigquery:"inspected_at"`
