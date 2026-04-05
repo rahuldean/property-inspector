@@ -1,16 +1,6 @@
-output "cloud_run_url" {
-  description = "Public URL of the Go API Cloud Run service"
-  value       = google_cloud_run_v2_service.api.uri
-}
-
-output "litellm_url" {
-  description = "Public URL of the LiteLLM proxy Cloud Run service"
-  value       = google_cloud_run_v2_service.litellm.uri
-}
-
 output "artifact_registry_url" {
   description = "Artifact Registry repository URL"
-  value       = "${local.registry_host}/${var.project_id}/property-inspector"
+  value       = "${var.region}-docker.pkg.dev/${var.project_id}/property-inspector"
 }
 
 output "github_actions_service_account" {
@@ -21,4 +11,9 @@ output "github_actions_service_account" {
 output "workload_identity_provider" {
   description = "Workload Identity Provider resource name to set as GCP_WORKLOAD_IDENTITY_PROVIDER in GitHub secrets"
   value       = google_iam_workload_identity_pool_provider.github.name
+}
+
+output "litellm_db_instance" {
+  description = "Cloud SQL instance connection name for LiteLLM"
+  value       = google_sql_database_instance.litellm.connection_name
 }

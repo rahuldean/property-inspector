@@ -1,13 +1,15 @@
-name: deploy
+name: deploy-api
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
 
 jobs:
-  build-and-deploy:
+  build-deploy-api:
     runs-on: ubuntu-latest
+    environment: prod
     permissions:
       contents: read
       id-token: write
@@ -27,41 +29,39 @@ jobs:
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker ${{ secrets.GCP_REGION }}-docker.pkg.dev --quiet
 
+      - name: Set image tag
+        run: echo "IMAGE=${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/property-inspector/api:${{ github.sha }}" >> $GITHUB_ENV
+
       - name: Build and push API image
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
-          tags: ${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/property-inspector/api:${{ github.sha }}
+          tags: ${{ env.IMAGE }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Build and push LiteLLM image
-        uses: docker/build-push-action@v5
-        with:
-          context: litellm
-          file: litellm/Dockerfile
-          push: true
-          tags: ${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/property-inspector/litellm:${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Deploy LiteLLM to Cloud Run
+      - name: Get LiteLLM URL
         run: |
-          gcloud run deploy litellm-proxy \
-            --image=${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/property-inspector/litellm:${{ github.sha }} \
+          LITELLM_URL=$(gcloud run services describe litellm-proxy \
             --region=${{ secrets.GCP_REGION }} \
             --project=${{ secrets.GCP_PROJECT_ID }} \
-            --update-secrets=LITELLM_MASTER_KEY=LITELLM_MASTER_KEY:latest \
-            --quiet
+            --format='value(status.url)')
+          echo "LITELLM_URL=$LITELLM_URL" >> $GITHUB_ENV
 
       - name: Deploy API to Cloud Run
         run: |
           gcloud run deploy property-inspector-api \
-            --image=${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/property-inspector/api:${{ github.sha }} \
+            --image=${{ env.IMAGE }} \
             --region=${{ secrets.GCP_REGION }} \
             --project=${{ secrets.GCP_PROJECT_ID }} \
-            --update-secrets=LITELLM_API_KEY=LITELLM_MASTER_KEY:latest \
+            --service-account=property-inspector-run@${{ secrets.GCP_PROJECT_ID }}.iam.gserviceaccount.com \
+            --memory=512Mi \
+            --min-instances=0 \
+            --max-instances=10 \
+            --port=8080 \
+            --set-env-vars=LITELLM_URL=${{ env.LITELLM_URL }},LITELLM_MODEL=inspector \
+            --update-secrets=LITELLM_API_KEY=LITELLM_VIRTUAL_KEY:latest \
             --quiet
 
       - name: Print live URL

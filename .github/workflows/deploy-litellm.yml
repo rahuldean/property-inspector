@@ -1,0 +1,62 @@
+name: deploy-litellm
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "litellm/**"
+
+jobs:
+  build-deploy-litellm:
+    runs-on: ubuntu-latest
+    environment: prod
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ secrets.GCP_REGION }}-docker.pkg.dev --quiet
+
+      - name: Set image tag
+        run: echo "IMAGE=${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/property-inspector/litellm:${{ github.sha }}" >> $GITHUB_ENV
+
+      - name: Build and push LiteLLM image
+        uses: docker/build-push-action@v5
+        with:
+          context: litellm
+          file: litellm/Dockerfile
+          push: true
+          tags: ${{ env.IMAGE }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Deploy LiteLLM to Cloud Run
+        run: |
+          gcloud run deploy litellm-proxy \
+            --image=${{ env.IMAGE }} \
+            --region=${{ secrets.GCP_REGION }} \
+            --project=${{ secrets.GCP_PROJECT_ID }} \
+            --service-account=property-inspector-run@${{ secrets.GCP_PROJECT_ID }}.iam.gserviceaccount.com \
+            --memory=2Gi \
+            --cpu=1 \
+            --cpu-boost \
+            --min-instances=0 \
+            --max-instances=5 \
+            --port=4000 \
+            --add-cloudsql-instances=${{ secrets.GCP_PROJECT_ID }}:${{ secrets.GCP_REGION }}:litellm-postgres \
+            --update-secrets=LITELLM_MASTER_KEY=LITELLM_MASTER_KEY:latest,DATABASE_URL=LITELLM_DATABASE_URL:latest \
+            --quiet

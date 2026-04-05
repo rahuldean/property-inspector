@@ -5,6 +5,10 @@ terraform {
       source  = "hashicorp/google"
       version = "~> 5.0"
     }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.0"
+    }
   }
 }
 
@@ -48,6 +52,55 @@ resource "google_secret_manager_secret" "litellm_virtual_key" {
   }
 }
 
+# Secret for the full DATABASE_URL -- built from the generated password below
+resource "google_secret_manager_secret" "litellm_db_url" {
+  secret_id = "LITELLM_DATABASE_URL"
+  replication {
+    auto {}
+  }
+}
+
+# --------------------------------------------------------------------------
+# Cloud SQL (Postgres) for LiteLLM
+# --------------------------------------------------------------------------
+
+resource "random_password" "litellm_db" {
+  length  = 32
+  special = false
+}
+
+resource "google_sql_database_instance" "litellm" {
+  name             = "litellm-postgres"
+  database_version = "POSTGRES_15"
+  region           = var.region
+
+  settings {
+    tier = "db-f1-micro"
+
+    backup_configuration {
+      enabled = true
+    }
+  }
+
+  deletion_protection = false
+}
+
+resource "google_sql_database" "litellm" {
+  name     = "litellm"
+  instance = google_sql_database_instance.litellm.name
+}
+
+resource "google_sql_user" "litellm" {
+  name     = "litellm"
+  instance = google_sql_database_instance.litellm.name
+  password = random_password.litellm_db.result
+}
+
+resource "google_secret_manager_secret_version" "litellm_db_url" {
+  secret      = google_secret_manager_secret.litellm_db_url.id
+  secret_data = "postgresql://litellm:${random_password.litellm_db.result}@localhost/litellm?host=/cloudsql/${google_sql_database_instance.litellm.connection_name}"
+}
+
 # --------------------------------------------------------------------------
 # Service account for Cloud Run workloads
 # --------------------------------------------------------------------------
@@ -67,6 +120,18 @@ resource "google_secret_manager_secret_iam_member" "run_litellm_virtual_key" {
   secret_id = google_secret_manager_secret.litellm_virtual_key.secret_id
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.cloud_run.email}"
+}
+
+resource "google_secret_manager_secret_iam_member" "run_db_url" {
+  secret_id = google_secret_manager_secret.litellm_db_url.secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.cloud_run.email}"
+}
+
+resource "google_project_iam_member" "run_cloudsql_client" {
+  project = var.project_id
+  role    = "roles/cloudsql.client"
+  member  = "serviceAccount:${google_service_account.cloud_run.email}"
 }
 
 # --------------------------------------------------------------------------
@@ -127,104 +192,4 @@ resource "google_service_account_iam_member" "github_impersonate_run_sa" {
   member             = "serviceAccount:${google_service_account.github_actions.email}"
 }
 
-# --------------------------------------------------------------------------
-# Cloud Run: LiteLLM proxy
-# --------------------------------------------------------------------------
 
-resource "google_cloud_run_v2_service" "litellm" {
-  name     = "litellm-proxy"
-  location = var.region
-
-  template {
-    service_account = google_service_account.cloud_run.email
-
-    scaling {
-      min_instance_count = 0
-      max_instance_count = 5
-    }
-
-    containers {
-      image = "${local.registry_path}/litellm:${var.image_tag}"
-      ports {
-        container_port = 4000
-      }
-
-      env {
-        name = "LITELLM_MASTER_KEY"
-        value_source {
-          secret_key_ref {
-            secret  = google_secret_manager_secret.litellm_master_key.secret_id
-            version = "latest"
-          }
-        }
-      }
-
-    }
-  }
-}
-
-resource "google_cloud_run_v2_service_iam_member" "litellm_public" {
-  location = google_cloud_run_v2_service.litellm.location
-  name     = google_cloud_run_v2_service.litellm.name
-  role     = "roles/run.invoker"
-  member   = "allUsers"
-}
-
-# --------------------------------------------------------------------------
-# Cloud Run: Go API server
-# --------------------------------------------------------------------------
-
-resource "google_cloud_run_v2_service" "api" {
-  name     = "property-inspector-api"
-  location = var.region
-
-  template {
-    service_account = google_service_account.cloud_run.email
-
-    scaling {
-      min_instance_count = 0
-      max_instance_count = 10
-    }
-
-    containers {
-      image = "${local.registry_path}/api:${var.image_tag}"
-      ports {
-        container_port = 8080
-      }
-
-      env {
-        name  = "PORT"
-        value = "8080"
-      }
-
-      env {
-        name  = "LITELLM_URL"
-        value = google_cloud_run_v2_service.litellm.uri
-      }
-
-      env {
-        name  = "LITELLM_MODEL"
-        value = "inspector"
-      }
-
-      env {
-        name = "LITELLM_API_KEY"
-        value_source {
-          secret_key_ref {
-            secret  = google_secret_manager_secret.litellm_virtual_key.secret_id
-            version = "latest"
-          }
-        }
-      }
-    }
-  }
-
-  depends_on = [google_cloud_run_v2_service.litellm]
-}
-
-resource "google_cloud_run_v2_service_iam_member" "api_public" {
-  location = google_cloud_run_v2_service.api.location
-  name     = google_cloud_run_v2_service.api.name
-  role     = "roles/run.invoker"
-  member   = "allUsers"
-}

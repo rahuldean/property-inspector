@@ -9,8 +9,3 @@ variable "region" {
   type        = string
   default     = "us-central1"
 }
-
-variable "image_tag" {
-  description = "Docker image tag to deploy (e.g. git SHA)"
-  type        = string
-}
