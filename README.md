@@ -1,114 +1,97 @@
 # Property Inspector Service
 [![property-inspector-service](https://github.com/rahuldean/property-inspector/actions/workflows/ci.yml/badge.svg)](https://github.com/rahuldean/property-inspector/actions/workflows/ci.yml)
 
-Analyzes property inspection photos using vision models via a LiteLLM proxy. Upload a room photo and get back a structured list of issues. Upload before/after photos to see what got fixed and what didn't.
+Analyzes property inspection photos using vision models via a LiteLLM proxy. Upload a room photo and get back a structured list of issues, or upload before/after photos to see what changed between inspections.
 
-## How it works
-
-The server accepts image uploads, base64-encodes them, and sends them to LiteLLM using the OpenAI chat completions format. LiteLLM routes to Claude (or whatever model you configure). The model returns structured JSON describing issues found in the room.
-
-## Setup
-
-You need Docker and an Anthropic (for now) API key.
+## Quick start (local)
 
 ```bash
-cp .env.example .env
-# Put your actual key in .env
-```
-
-Start everything:
-
-```bash
+cp .env.example .env   # set LITELLM_MASTER_KEY and your model API key
 docker compose up --build
 ```
 
-This brings up:
-- **LiteLLM proxy** on port 4000 (routes to Claude)
-- **Go API server** on port 8080
+This starts the LiteLLM proxy on port 4000 and the API server on port 6000.
+
+## GCP deployment
+
+### First-time setup
+
+```bash
+cd terraform
+terraform init
+terraform apply -var="image_tag=latest"
+```
+Note: You can also pass the above variables using a terraform.tfvars file.
+
+After apply, copy the output values into your GitHub repository secrets:
+
+
+* `GCP_PROJECT_ID` - your project ID
+* `GCP_REGION` - the region you deployed to
+* `GCP_SERVICE_ACCOUNT` - value of `github_actions_service_account`
+* `GCP_WORKLOAD_IDENTITY_PROVIDER` - value of `workload_identity_provider`
+
+Seed the required secrets in Secret Manager:
+
+```bash
+echo -n "sk-litellm-master-..." | gcloud secrets versions add LITELLM_MASTER_KEY --data-file=-
+```
+
+After first deploy, open the LiteLLM admin UI, add your model API keys (Anthropic, etc.) there, then create a virtual key for the API service and store it:
+
+```bash
+echo -n "sk-virtual-..." | gcloud secrets versions add LITELLM_VIRTUAL_KEY --data-file=-
+```
+
+Then redeploy (or update the Cloud Run service) so the API picks up the new secret version.
+
+### Deploying
+
+Push to `main` to trigger the deploy workflow. The workflow builds both images, pushes them to Artifact Registry, and deploys them to Cloud Run.
 
 ## API
 
 ### `POST /analyze`
 
-Upload a single room photo. Returns a list of issues found.
-
 ```bash
-curl -X POST http://localhost:8080/analyze \
+curl -X POST https://YOUR_DEMO_URL/analyze \
   -F "image=@photo.jpg" \
   -F "room_name=Kitchen" \
   -F "floor_unit=Unit 4B"
 ```
 
-Response:
-
-```json
-{
-  "room_meta": {
-    "room_name": "Kitchen",
-    "floor_unit": "Unit 4B",
-    "inspected_at": "2025-12-15T10:30:00Z"
-  },
-  "issues": [
-    {
-      "category": "Wall Damage",
-      "severity": "moderate",
-      "description": "Scuff marks and small dent near the doorframe",
-      "location": "east wall by entrance",
-      "confidence": 0.85
-    }
-  ],
-  "summary": "Kitchen is in fair condition with minor wall damage near the entrance.",
-  "overall_condition": "fair",
-  "generated_at": "2025-12-15T10:47:00Z"
-}
-```
+Response: `RoomAnalysis` JSON with `issues[]`, `summary`, `overall_condition`, and `room_meta`.
 
 ### `POST /compare`
 
-Upload before and after photos of the same room. Returns what changed.
-
 ```bash
-curl -X POST http://localhost:8080/compare \
+curl -X POST https://YOUR_DEMO_URL/compare \
   -F "before=@move_in.jpg" \
   -F "after=@move_out.jpg" \
   -F "room_name=Living Room" \
   -F "floor_unit=Unit 4B"
 ```
 
-Response includes `resolved_issues`, `new_issues`, and `unchanged_issues` arrays plus a summary.
+Response: `ComparisonReport` JSON with `resolved_issues[]`, `new_issues[]`, `unchanged_issues[]`, and a `summary`.
 
 ### `GET /health`
 
 Returns `{"status": "ok"}`.
 
-## CLI
-
-There's also a CLI if you want to skip the HTTP server and talk to LiteLLM directly:
-
-```bash
-go run ./cmd/inspect analyze --image photo.jpg --room "Kitchen" --unit "2A"
-go run ./cmd/inspect compare --before move_in.jpg --after move_out.jpg --room "Kitchen"
-```
-
-Set `LITELLM_URL` if the proxy isn't on localhost:4000.
-
 ## Switching models
 
-Edit `litellm/config.yaml` to point at a different model. For example, to use GPT-4o:
+Edit `litellm/config.yaml` and add the corresponding API key to Secret Manager. The current config has two routes:
 
-```yaml
-model_list:
-  - model_name: inspector
-    litellm_params:
-      model: openai/gpt-4o
-      api_key: os.environ/OPENAI_API_KEY
-```
+- `inspector` - Claude 3.5 Sonnet (default)
+- `inspector-gemini` - Gemini 1.5 Pro
 
-Then set `OPENAI_API_KEY` in your `.env` and restart.
+Set the `LITELLM_MODEL` env var on the API Cloud Run service to switch routes.
 
 ## Using as a Go library
 
 ```go
+import "github.com/rahuldean/property-inspector/inspector"
+
 client := inspector.NewClient(
     inspector.WithBaseURL("http://localhost:4000"),
     inspector.WithModel("inspector"),

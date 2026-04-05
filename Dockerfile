@@ -1,13 +1,13 @@
-FROM golang:1.22-alpine AS build
+FROM golang:1.23-alpine AS build
 
 WORKDIR /src
 COPY go.mod ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 go build -o /bin/server ./cmd/server
+RUN CGO_ENABLED=0 GOOS=linux go build -o /bin/server ./cmd/server
 
-FROM alpine:3.19
-RUN apk add --no-cache ca-certificates
+FROM gcr.io/distroless/static:nonroot
+
 COPY --from=build /bin/server /bin/server
-EXPOSE 6000
+EXPOSE 8080
 ENTRYPOINT ["/bin/server"]

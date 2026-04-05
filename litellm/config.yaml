@@ -1,2 +1,4 @@
 general_settings:
   master_key: os.environ/LITELLM_MASTER_KEY
+  drop_params: true
+  store_model_in_db: true

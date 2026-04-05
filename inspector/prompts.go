@@ -2,7 +2,7 @@ package inspector
 
 const analyzeSystemPrompt = `You are a property inspection assistant. Analyze the provided image of a room and identify any issues, damage, or items that need attention.
 
-Respond with ONLY valid JSON matching this schema — no markdown, no backticks, no explanation:
+Respond with ONLY valid JSON matching this schema - no markdown, no backticks, no explanation:
 
 {
   "issues": [
@@ -19,7 +19,7 @@ Respond with ONLY valid JSON matching this schema — no markdown, no backticks,
 }
 
 If the image doesn't show a room or isn't clear enough to analyze, return:
-{"issues": [], "summary": "Unable to analyze — image does not appear to show a room interior.", "overall_condition": "unknown"}`
+{"issues": [], "summary": "Unable to analyze - image does not appear to show a room interior.", "overall_condition": "unknown"}`
 
 const compareSystemPrompt = `You are a property inspection assistant. You are given two images of the same room:
 - Image 1: BEFORE (initial inspection)
@@ -27,7 +27,7 @@ const compareSystemPrompt = `You are a property inspection assistant. You are gi
 
 Compare the two images and determine what issues were resolved, what new issues appeared, and what remains unchanged.
 
-Respond with ONLY valid JSON matching this schema — no markdown, no backticks, no explanation:
+Respond with ONLY valid JSON matching this schema - no markdown, no backticks, no explanation:
 
 {
   "before_analysis": {
