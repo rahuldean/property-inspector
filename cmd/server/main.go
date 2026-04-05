@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -42,10 +43,19 @@ func main() {
 		inspector.WithAPIKey(os.Getenv("LITELLM_API_KEY")),
 	)
 
+	var bqLogger *BQLogger
+	if projectID := os.Getenv("GOOGLE_CLOUD_PROJECT"); projectID != "" {
+		var err error
+		bqLogger, err = newBQLogger(context.Background(), projectID)
+		if err != nil {
+			log.Printf("bigquery logger init failed (logging disabled): %v", err)
+		}
+	}
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", handleHealth)
-	mux.HandleFunc("POST /analyze", handleAnalyze(client, int64(maxUploadMB)))
-	mux.HandleFunc("POST /compare", handleCompare(client, int64(maxUploadMB)))
+	mux.HandleFunc("POST /analyze", handleAnalyze(client, model, int64(maxUploadMB), bqLogger))
+	mux.HandleFunc("POST /compare", handleCompare(client, model, int64(maxUploadMB), bqLogger))
 
 	log.Printf("starting server on :%s (litellm: %s, model: %s)", port, litellmURL, model)
 	if err := http.ListenAndServe(":"+port, mux); err != nil {
@@ -58,8 +68,10 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
 
-func handleAnalyze(client *inspector.Client, maxUploadMB int64) http.HandlerFunc {
+func handleAnalyze(client *inspector.Client, model string, maxUploadMB int64, bqLogger *BQLogger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+
 		if err := r.ParseMultipartForm(maxUploadMB << 20); err != nil {
 			httpError(w, "failed to parse form", http.StatusBadRequest)
 			return
@@ -97,19 +109,50 @@ func handleAnalyze(client *inspector.Client, maxUploadMB int64) http.HandlerFunc
 		}
 
 		result, err := client.AnalyzeRoom(r.Context(), tmpFile.Name(), meta)
+		elapsed := time.Since(start).Milliseconds()
 		if err != nil {
 			log.Printf("analyze error: %v", err)
 			httpError(w, fmt.Sprintf("analysis failed: %v", err), http.StatusInternalServerError)
+			if bqLogger != nil {
+				bqLogger.LogAsync(inspectionRow{
+					ID:             newUUID(),
+					RoomName:       meta.RoomName,
+					FloorUnit:      meta.FloorUnit,
+					Endpoint:       "/analyze",
+					ModelUsed:      model,
+					ResponseTimeMs: elapsed,
+					Error:          true,
+					InspectedAt:    meta.InspectedAt,
+				})
+			}
 			return
 		}
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(result)
+
+		if bqLogger != nil {
+			n := int64(len(result.Issues))
+			bqLogger.LogAsync(inspectionRow{
+				ID:               newUUID(),
+				RoomName:         meta.RoomName,
+				FloorUnit:        meta.FloorUnit,
+				Endpoint:         "/analyze",
+				ModelUsed:        model,
+				OverallCondition: result.OverallCondition,
+				AfterIssueCount:  &n,
+				ResponseTimeMs:   elapsed,
+				Error:            false,
+				InspectedAt:      meta.InspectedAt,
+			})
+		}
 	}
 }
 
-func handleCompare(client *inspector.Client, maxUploadMB int64) http.HandlerFunc {
+func handleCompare(client *inspector.Client, model string, maxUploadMB int64, bqLogger *BQLogger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+
 		if err := r.ParseMultipartForm(maxUploadMB * 2 << 20); err != nil {
 			httpError(w, "failed to parse form", http.StatusBadRequest)
 			return
@@ -154,14 +197,45 @@ func handleCompare(client *inspector.Client, maxUploadMB int64) http.HandlerFunc
 		}
 
 		result, err := client.CompareInspections(r.Context(), beforeTmp, afterTmp, meta)
+		elapsed := time.Since(start).Milliseconds()
 		if err != nil {
 			log.Printf("compare error: %v", err)
 			httpError(w, fmt.Sprintf("comparison failed: %v", err), http.StatusInternalServerError)
+			if bqLogger != nil {
+				bqLogger.LogAsync(inspectionRow{
+					ID:             newUUID(),
+					RoomName:       meta.RoomName,
+					FloorUnit:      meta.FloorUnit,
+					Endpoint:       "/compare",
+					ModelUsed:      model,
+					ResponseTimeMs: elapsed,
+					Error:          true,
+					InspectedAt:    meta.InspectedAt,
+				})
+			}
 			return
 		}
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(result)
+
+		if bqLogger != nil {
+			before := int64(len(result.BeforeAnalysis.Issues))
+			after := int64(len(result.AfterAnalysis.Issues))
+			bqLogger.LogAsync(inspectionRow{
+				ID:               newUUID(),
+				RoomName:         meta.RoomName,
+				FloorUnit:        meta.FloorUnit,
+				Endpoint:         "/compare",
+				ModelUsed:        model,
+				OverallCondition: result.AfterAnalysis.OverallCondition,
+				BeforeIssueCount: &before,
+				AfterIssueCount:  &after,
+				ResponseTimeMs:   elapsed,
+				Error:            false,
+				InspectedAt:      meta.InspectedAt,
+			})
+		}
 	}
 }
 

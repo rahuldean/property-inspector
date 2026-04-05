@@ -1,0 +1,63 @@
+# Prod requests require a valid Cloud Run ID token in auth_token.
+# Get one with: gcloud auth print-identity-token
+
+# Variables - START
+@base_url=http://localhost:8200
+@auth_token=Bearer YOUR_ID_TOKEN
+# Variables - END
+
+### Health Check
+
+GET {{base_url}}/health
+Authorization: {{auth_token}}
+
+
+### Analyze Room
+# Set the image path to a local jpg/png/webp file.
+
+POST {{base_url}}/analyze
+Authorization: {{auth_token}}
+Content-Type: multipart/form-data; boundary=boundary
+
+--boundary
+Content-Disposition: form-data; name="image"; filename="room.jpg"
+Content-Type: image/jpeg
+
+< ./sample_images/room.jpg
+--boundary
+Content-Disposition: form-data; name="room_name"
+
+Kitchen
+--boundary
+Content-Disposition: form-data; name="floor_unit"
+
+Unit 4B
+--boundary--
+
+
+### Compare Inspections
+# Set before/after paths to local images.
+
+POST {{base_url}}/compare
+Authorization: {{auth_token}}
+Content-Type: multipart/form-data; boundary=boundary
+
+--boundary
+Content-Disposition: form-data; name="before"; filename="before.jpg"
+Content-Type: image/jpeg
+
+< ./sample_images/before.jpg
+--boundary
+Content-Disposition: form-data; name="after"; filename="after.jpg"
+Content-Type: image/jpeg
+
+< ./sample_images/after.jpg
+--boundary
+Content-Disposition: form-data; name="room_name"
+
+Living Room
+--boundary
+Content-Disposition: form-data; name="floor_unit"
+
+Unit 4B
+--boundary--
