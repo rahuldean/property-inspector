@@ -44,3 +44,6 @@ terraform/terraform.tfstate.backup
 terraform/*.tfvars
 
 server
+
+node_modules/
+.next/

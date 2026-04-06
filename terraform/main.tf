@@ -128,6 +128,40 @@ resource "google_secret_manager_secret_iam_member" "run_db_url" {
   member    = "serviceAccount:${google_service_account.cloud_run.email}"
 }
 
+# Token used to gate access to the Next.js inspector app (URL token auth)
+resource "google_secret_manager_secret" "inspector_app_token" {
+  secret_id = "INSPECTOR_APP_TOKEN"
+  replication {
+    auto {}
+  }
+}
+
+resource "google_secret_manager_secret_iam_member" "run_app_token" {
+  secret_id = google_secret_manager_secret.inspector_app_token.secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.cloud_run.email}"
+}
+
+# Direct VPC Egress requires compute.networkUser on both the workload SA and the Cloud Run service agent
+resource "google_project_iam_member" "run_network_user" {
+  project = var.project_id
+  role    = "roles/compute.networkUser"
+  member  = "serviceAccount:${google_service_account.cloud_run.email}"
+}
+
+resource "google_project_iam_member" "cloudrun_agent_network_user" {
+  project = var.project_id
+  role    = "roles/compute.networkUser"
+  member  = "serviceAccount:service-${var.project_number}@serverless-robot-prod.iam.gserviceaccount.com"
+}
+
+# Allow the Cloud Run SA to invoke other Cloud Run services (e.g. inspector-app calling the Go API)
+resource "google_project_iam_member" "run_invoker" {
+  project = var.project_id
+  role    = "roles/run.invoker"
+  member  = "serviceAccount:${google_service_account.cloud_run.email}"
+}
+
 resource "google_project_iam_member" "run_cloudsql_client" {
   project = var.project_id
   role    = "roles/cloudsql.client"
