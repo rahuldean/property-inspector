@@ -1,17 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-
-async function getIdToken(audience: string): Promise<string | null> {
-  try {
-    const res = await fetch(
-      `http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity?audience=${encodeURIComponent(audience)}`,
-      { headers: { 'Metadata-Flavor': 'Google' }, signal: AbortSignal.timeout(2000) }
-    )
-    if (res.ok) return res.text()
-  } catch {
-    // Not on GCP -- fine for local dev
-  }
-  return null
-}
+import { getIdToken } from '@/lib/gcp'
 
 export async function POST(request: NextRequest) {
   const apiUrl = process.env.INSPECTOR_API_URL
@@ -37,6 +25,7 @@ export async function POST(request: NextRequest) {
       method: 'POST',
       headers,
       body: formData,
+      cache: 'no-store',
     })
     const data = await upstream.json()
     return NextResponse.json(data, { status: upstream.status })
