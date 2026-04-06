@@ -1,0 +1,79 @@
+name: deploy-inspector-app
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'apps/inspector_app/**'
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    environment: prod
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ secrets.GCP_REGION }}-docker.pkg.dev --quiet
+
+      - name: Set image tag
+        run: |
+          echo "IMAGE=${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/property-inspector/inspector-app:${{ github.sha }}" >> $GITHUB_ENV
+
+      - name: Build and push image
+        uses: docker/build-push-action@v5
+        with:
+          context: apps/inspector_app
+          push: true
+          tags: ${{ env.IMAGE }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Get API URL
+        run: |
+          API_URL=$(gcloud run services describe property-inspector-api \
+            --region=${{ secrets.GCP_REGION }} \
+            --project=${{ secrets.GCP_PROJECT_ID }} \
+            --format='value(status.url)')
+          echo "API_URL=$API_URL" >> $GITHUB_ENV
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy inspector-app \
+            --image=${{ env.IMAGE }} \
+            --region=${{ secrets.GCP_REGION }} \
+            --project=${{ secrets.GCP_PROJECT_ID }} \
+            --service-account=property-inspector-run@${{ secrets.GCP_PROJECT_ID }}.iam.gserviceaccount.com \
+            --memory=512Mi \
+            --min-instances=0 \
+            --max-instances=5 \
+            --port=8080 \
+            --allow-unauthenticated \
+            --set-env-vars=INSPECTOR_API_URL=${{ env.API_URL }} \
+            --update-secrets=APP_TOKEN=INSPECTOR_APP_TOKEN:latest \
+            --quiet
+
+      - name: Print live URL
+        run: |
+          URL=$(gcloud run services describe inspector-app \
+            --region=${{ secrets.GCP_REGION }} \
+            --project=${{ secrets.GCP_PROJECT_ID }} \
+            --format='value(status.url)')
+          echo "### Deployed" >> $GITHUB_STEP_SUMMARY
+          echo "Inspector App: $URL" >> $GITHUB_STEP_SUMMARY
+          echo "Share link: $URL?token=YOUR_TOKEN" >> $GITHUB_STEP_SUMMARY
