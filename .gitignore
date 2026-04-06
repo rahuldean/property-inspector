@@ -33,8 +33,9 @@ go.work.sum
 
 .DS_STORE
 
-# GCP credential files
+# GCP credential files (but allow package manifests and tsconfig in apps/)
 *.json
+!apps/**/*.json
 
 # Terraform
 terraform/.terraform/
