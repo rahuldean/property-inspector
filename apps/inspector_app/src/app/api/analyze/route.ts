@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
   const getCachedResult = unstable_cache(
     async () => {
       cacheMiss = true
-      console.log(`[analyze] cache miss — calling upstream (key: ${cacheKey})`)
+      console.log(`[analyze] cache miss  calling upstream (key: ${cacheKey})`)
       const fd = new FormData()
       fd.append('room_name', roomName)
       if (floorUnit) fd.append('floor_unit', floorUnit)
