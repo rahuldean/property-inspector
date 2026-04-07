@@ -11,7 +11,7 @@ export default function ConditionBadge({ condition }: { condition: string }) {
   const style = styles[key] ?? styles.unknown
 
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium ${style}`}>
+    <span className={`inline-flex items-center px-2 py-0.5 text-sm font-medium ${style}`}>
       {condition || 'Unknown'}
     </span>
   )

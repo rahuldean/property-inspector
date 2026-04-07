@@ -46,15 +46,15 @@ function IssueRow({ issue }: { issue: Issue }) {
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${s.badge} ${s.badgeText}`}>
+            <span className={`text-sm font-semibold px-2 py-0.5 rounded-full ${s.badge} ${s.badgeText}`}>
               {s.label}
             </span>
-            <span className="text-xs text-neutral-400">{issue.category}</span>
+            <span className="text-sm text-neutral-400">{issue.category}</span>
           </div>
-          <p className="text-sm text-neutral-800 leading-snug">{issue.description}</p>
-          <p className="text-xs text-neutral-400 mt-1">{issue.location}</p>
+          <p className="text-base text-neutral-800 leading-snug">{issue.description}</p>
+          <p className="text-sm text-neutral-400 mt-1">{issue.location}</p>
         </div>
-        <span className="text-xs text-neutral-300 font-mono flex-shrink-0 pt-0.5">{pct}%</span>
+        <span className="text-sm text-neutral-300 font-mono flex-shrink-0 pt-0.5">{pct}%</span>
       </div>
     </div>
   )
@@ -72,31 +72,33 @@ export default function IssueList({
   const severe   = issues.filter(i => i.severity?.toLowerCase() === 'severe')
   const moderate = issues.filter(i => i.severity?.toLowerCase() === 'moderate')
   const minor    = issues.filter(i => i.severity?.toLowerCase() === 'minor')
-  const ordered  = [...severe, ...moderate, ...minor]
+  const known    = new Set(['severe', 'moderate', 'minor'])
+  const other    = issues.filter(i => !known.has(i.severity?.toLowerCase() ?? ''))
+  const ordered  = [...severe, ...moderate, ...minor, ...other]
 
   return (
     <div>
       <div className="flex items-center gap-3 mb-3">
-        <span className="text-xs font-semibold text-neutral-700">{label}</span>
+        <span className="text-sm font-semibold text-neutral-700">{label}</span>
         {severe.length > 0 && (
-          <span className="text-xs font-medium text-red-600 bg-red-50 rounded-full px-2 py-0.5">
+          <span className="text-sm font-medium text-red-600 bg-red-50 rounded-full px-2 py-0.5">
             {severe.length} severe
           </span>
         )}
         {moderate.length > 0 && (
-          <span className="text-xs font-medium text-amber-600 bg-amber-50 rounded-full px-2 py-0.5">
+          <span className="text-sm font-medium text-amber-600 bg-amber-50 rounded-full px-2 py-0.5">
             {moderate.length} moderate
           </span>
         )}
         {minor.length > 0 && (
-          <span className="text-xs font-medium text-neutral-500 bg-neutral-100 rounded-full px-2 py-0.5">
+          <span className="text-sm font-medium text-neutral-500 bg-neutral-100 rounded-full px-2 py-0.5">
             {minor.length} minor
           </span>
         )}
       </div>
 
       {ordered.length === 0 ? (
-        <p className="text-xs text-neutral-400">{emptyMessage}</p>
+        <p className="text-sm text-neutral-400">{emptyMessage}</p>
       ) : (
         <div className="flex flex-col gap-2">
           {ordered.map((issue, i) => (

@@ -34,8 +34,8 @@ interface ComparisonReport {
 
 export default function Page() {
   const [mode, setMode] = useState<Mode>('analyze')
-  const [roomName, setRoomName] = useState('')
-  const [floorUnit, setFloorUnit] = useState('')
+  const [roomName, setRoomName] = useState('Living Room')
+  const [floorUnit, setFloorUnit] = useState('2A')
   const [image, setImage] = useState<File | null>(null)
   const [analyzeResult, setAnalyzeResult] = useState<RoomAnalysis | null>(null)
   const [before, setBefore] = useState<File | null>(null)
@@ -74,16 +74,24 @@ export default function Page() {
   function switchMode(next: Mode) {
     setMode(next)
     setError(null)
-    setAnalyzeResult(null)
-    setCompareResult(null)
+    if (next === 'analyze') {
+      setRoomName('Living Room')
+      setFloorUnit('2A')
+    } else {
+      setRoomName('Bed Room')
+      setFloorUnit('2A')
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
     setError(null)
-    setAnalyzeResult(null)
-    setCompareResult(null)
+    if (mode === 'analyze') {
+      setAnalyzeResult(null)
+    } else {
+      setCompareResult(null)
+    }
 
     const fd = new FormData()
     fd.append('room_name', roomName || 'Unknown Room')
@@ -124,9 +132,12 @@ export default function Page() {
 
         {/* Header */}
         <div className="mb-5 px-1">
-          <h1 className="text-sm font-semibold text-neutral-900 tracking-tight">
+          <h1 className="text-base font-semibold text-neutral-900 tracking-tight">
             Property Inspector
           </h1>
+          <p className="text-sm text-neutral-400 mt-1">
+            Sample images are preloaded for illustration - upload your own to inspect a real property and your images are never stored on the server.
+          </p>
         </div>
 
         {/* Form card */}
@@ -139,7 +150,7 @@ export default function Page() {
                 key={m}
                 type="button"
                 onClick={() => switchMode(m)}
-                className={`flex-1 py-3 text-xs font-medium transition-colors ${
+                className={`flex-1 py-3 text-sm font-medium transition-colors ${
                   mode === m
                     ? 'text-neutral-900 bg-white'
                     : 'text-neutral-400 bg-neutral-50 hover:text-neutral-600 hover:bg-neutral-50'
@@ -162,27 +173,27 @@ export default function Page() {
 
             <div className="grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-medium text-neutral-500">Room</label>
+                <label className="text-sm font-medium text-neutral-500">Room</label>
                 <input
                   type="text"
                   value={roomName}
                   onChange={(e) => setRoomName(e.target.value)}
                   placeholder="Kitchen"
                   disabled={loading}
-                  className="bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2 text-sm
+                  className="bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2 text-base
                              text-neutral-900 placeholder:text-neutral-300 focus:outline-none
                              focus:border-neutral-400 focus:bg-white transition-colors disabled:opacity-50"
                 />
               </div>
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-medium text-neutral-500">Unit</label>
+                <label className="text-sm font-medium text-neutral-500">Unit</label>
                 <input
                   type="text"
                   value={floorUnit}
                   onChange={(e) => setFloorUnit(e.target.value)}
                   placeholder="2A"
                   disabled={loading}
-                  className="bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2 text-sm
+                  className="bg-neutral-50 border border-neutral-200 rounded-lg px-3 py-2 text-base
                              text-neutral-900 placeholder:text-neutral-300 focus:outline-none
                              focus:border-neutral-400 focus:bg-white transition-colors disabled:opacity-50"
                 />
@@ -192,7 +203,7 @@ export default function Page() {
             <button
               type="submit"
               disabled={!canSubmit}
-              className="bg-neutral-900 text-white text-sm font-medium py-2.5 rounded-lg
+              className="bg-neutral-900 text-white text-base font-medium py-2.5 rounded-lg
                          hover:bg-neutral-700 active:bg-neutral-800 transition-colors
                          disabled:opacity-30 disabled:cursor-not-allowed"
             >
@@ -206,31 +217,31 @@ export default function Page() {
             </button>
 
             {error && (
-              <p className="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2">{error}</p>
+              <p className="text-sm text-red-500 bg-red-50 rounded-lg px-3 py-2">{error}</p>
             )}
           </form>
         </div>
 
         {/* Analyze results */}
-        {analyzeResult && (
+        {mode === 'analyze' && analyzeResult && (
           <div className="mt-4 flex flex-col gap-3">
             {/* Summary card */}
             <div className="bg-white rounded-xl border border-neutral-200 shadow-sm p-5">
               <div className="flex items-start justify-between gap-3 mb-3">
                 <div>
-                  <p className="text-sm font-medium text-neutral-900">
+                  <p className="text-base font-medium text-neutral-900">
                     {analyzeResult.room_meta.room_name}
                     {analyzeResult.room_meta.floor_unit && (
                       <span className="text-neutral-400 font-normal"> · {analyzeResult.room_meta.floor_unit}</span>
                     )}
                   </p>
-                  <p className="text-xs text-neutral-400 mt-0.5">
+                  <p className="text-sm text-neutral-400 mt-0.5">
                     {analyzeResult.issues.length} issue{analyzeResult.issues.length !== 1 ? 's' : ''} detected
                   </p>
                 </div>
                 <ConditionBadge condition={analyzeResult.overall_condition} />
               </div>
-              <p className="text-sm text-neutral-600 leading-relaxed">{analyzeResult.summary}</p>
+              <p className="text-base text-neutral-600 leading-relaxed">{analyzeResult.summary}</p>
             </div>
 
             {/* Issues card */}
@@ -243,12 +254,12 @@ export default function Page() {
         )}
 
         {/* Compare results */}
-        {compareResult && (
+        {mode === 'compare' && compareResult && (
           <div className="mt-4 flex flex-col gap-3">
             {/* Summary card */}
             <div className="bg-white rounded-xl border border-neutral-200 shadow-sm p-5">
               <div className="flex items-start justify-between gap-3 mb-3">
-                <p className="text-sm font-medium text-neutral-900">
+                <p className="text-base font-medium text-neutral-900">
                   {compareResult.room_meta.room_name}
                   {compareResult.room_meta.floor_unit && (
                     <span className="text-neutral-400 font-normal"> · {compareResult.room_meta.floor_unit}</span>
@@ -260,20 +271,20 @@ export default function Page() {
                   <ConditionBadge condition={compareResult.after_analysis.overall_condition} />
                 </div>
               </div>
-              <p className="text-sm text-neutral-600 leading-relaxed">{compareResult.summary}</p>
+              <p className="text-base text-neutral-600 leading-relaxed">{compareResult.summary}</p>
               <div className="flex gap-3 mt-3 pt-3 border-t border-neutral-100">
                 {compareResult.resolved_issues.length > 0 && (
-                  <span className="text-xs font-medium text-emerald-600 bg-emerald-50 rounded-full px-2.5 py-0.5">
+                  <span className="text-sm font-medium text-emerald-600 bg-emerald-50 rounded-full px-2.5 py-0.5">
                     {compareResult.resolved_issues.length} resolved
                   </span>
                 )}
                 {compareResult.new_issues.length > 0 && (
-                  <span className="text-xs font-medium text-red-600 bg-red-50 rounded-full px-2.5 py-0.5">
+                  <span className="text-sm font-medium text-red-600 bg-red-50 rounded-full px-2.5 py-0.5">
                     {compareResult.new_issues.length} new
                   </span>
                 )}
                 {compareResult.unchanged_issues.length > 0 && (
-                  <span className="text-xs font-medium text-neutral-500 bg-neutral-100 rounded-full px-2.5 py-0.5">
+                  <span className="text-sm font-medium text-neutral-500 bg-neutral-100 rounded-full px-2.5 py-0.5">
                     {compareResult.unchanged_issues.length} unchanged
                   </span>
                 )}
@@ -298,7 +309,7 @@ export default function Page() {
           </div>
         )}
 
-        <p className="mt-8 px-1 text-xs text-neutral-400">
+        <p className="mt-8 px-1 text-sm text-neutral-400">
           Results are AI-generated and should be verified by a qualified inspector.
         </p>
       </div>
