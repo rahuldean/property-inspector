@@ -12,8 +12,3 @@ output "workload_identity_provider" {
   description = "Workload Identity Provider resource name to set as GCP_WORKLOAD_IDENTITY_PROVIDER in GitHub secrets"
   value       = google_iam_workload_identity_pool_provider.github.name
 }
-
-output "litellm_db_instance" {
-  description = "Cloud SQL instance connection name for LiteLLM"
-  value       = google_sql_database_instance.litellm.connection_name
-}

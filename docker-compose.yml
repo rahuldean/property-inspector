@@ -45,6 +45,8 @@ services:
       - LITELLM_URL=http://litellm:4000
       - LITELLM_MODEL=${LITELLM_MODEL:-inspector}
       - LITELLM_API_KEY=${LITELLM_API_KEY:-}
+      - CF_ACCESS_CLIENT_ID=${CF_ACCESS_CLIENT_ID:-}
+      - CF_ACCESS_CLIENT_SECRET=${CF_ACCESS_CLIENT_SECRET:-}
       - MAX_UPLOAD_MB=${MAX_UPLOAD_MB:-32}
     depends_on:
       litellm:

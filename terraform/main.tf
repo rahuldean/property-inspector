@@ -5,10 +5,6 @@ terraform {
       source  = "hashicorp/google"
       version = "~> 5.0"
     }
-    random = {
-      source  = "hashicorp/random"
-      version = "~> 3.0"
-    }
   }
 }
 
@@ -37,68 +33,26 @@ resource "google_artifact_registry_repository" "property_inspector" {
 # Secret Manager
 # --------------------------------------------------------------------------
 
-resource "google_secret_manager_secret" "litellm_master_key" {
-  secret_id = "LITELLM_MASTER_KEY"
+# Virtual key created via the aigw.labmox.com admin UI
+resource "google_secret_manager_secret" "litellm_api_key" {
+  secret_id = "LITELLM_API_KEY"
   replication {
     auto {}
   }
 }
 
-# Virtual key created via the LiteLLM admin UI and stored here for the API to use
-resource "google_secret_manager_secret" "litellm_virtual_key" {
-  secret_id = "LITELLM_VIRTUAL_KEY"
+resource "google_secret_manager_secret" "cf_access_client_id" {
+  secret_id = "CF_ACCESS_CLIENT_ID"
   replication {
     auto {}
   }
 }
 
-# Secret for the full DATABASE_URL -- built from the generated password below
-resource "google_secret_manager_secret" "litellm_db_url" {
-  secret_id = "LITELLM_DATABASE_URL"
+resource "google_secret_manager_secret" "cf_access_client_secret" {
+  secret_id = "CF_ACCESS_CLIENT_SECRET"
   replication {
     auto {}
   }
-}
-
-# --------------------------------------------------------------------------
-# Cloud SQL (Postgres) for LiteLLM
-# --------------------------------------------------------------------------
-
-resource "random_password" "litellm_db" {
-  length  = 32
-  special = false
-}
-
-resource "google_sql_database_instance" "litellm" {
-  name             = "litellm-postgres"
-  database_version = "POSTGRES_15"
-  region           = var.region
-
-  settings {
-    tier = "db-f1-micro"
-
-    backup_configuration {
-      enabled = true
-    }
-  }
-
-  deletion_protection = false
-}
-
-resource "google_sql_database" "litellm" {
-  name     = "litellm"
-  instance = google_sql_database_instance.litellm.name
-}
-
-resource "google_sql_user" "litellm" {
-  name     = "litellm"
-  instance = google_sql_database_instance.litellm.name
-  password = random_password.litellm_db.result
-}
-
-resource "google_secret_manager_secret_version" "litellm_db_url" {
-  secret      = google_secret_manager_secret.litellm_db_url.id
-  secret_data = "postgresql://litellm:${random_password.litellm_db.result}@localhost/litellm?host=/cloudsql/${google_sql_database_instance.litellm.connection_name}"
 }
 
 # --------------------------------------------------------------------------
@@ -110,20 +64,20 @@ resource "google_service_account" "cloud_run" {
   display_name = "Property Inspector Cloud Run SA"
 }
 
-resource "google_secret_manager_secret_iam_member" "run_litellm_key" {
-  secret_id = google_secret_manager_secret.litellm_master_key.secret_id
+resource "google_secret_manager_secret_iam_member" "run_litellm_api_key" {
+  secret_id = google_secret_manager_secret.litellm_api_key.secret_id
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.cloud_run.email}"
 }
 
-resource "google_secret_manager_secret_iam_member" "run_litellm_virtual_key" {
-  secret_id = google_secret_manager_secret.litellm_virtual_key.secret_id
+resource "google_secret_manager_secret_iam_member" "run_cf_client_id" {
+  secret_id = google_secret_manager_secret.cf_access_client_id.secret_id
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.cloud_run.email}"
 }
 
-resource "google_secret_manager_secret_iam_member" "run_db_url" {
-  secret_id = google_secret_manager_secret.litellm_db_url.secret_id
+resource "google_secret_manager_secret_iam_member" "run_cf_client_secret" {
+  secret_id = google_secret_manager_secret.cf_access_client_secret.secret_id
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.cloud_run.email}"
 }
@@ -142,29 +96,10 @@ resource "google_secret_manager_secret_iam_member" "run_app_token" {
   member    = "serviceAccount:${google_service_account.cloud_run.email}"
 }
 
-# Direct VPC Egress requires compute.networkUser on both the workload SA and the Cloud Run service agent
-resource "google_project_iam_member" "run_network_user" {
-  project = var.project_id
-  role    = "roles/compute.networkUser"
-  member  = "serviceAccount:${google_service_account.cloud_run.email}"
-}
-
-resource "google_project_iam_member" "cloudrun_agent_network_user" {
-  project = var.project_id
-  role    = "roles/compute.networkUser"
-  member  = "serviceAccount:service-${var.project_number}@serverless-robot-prod.iam.gserviceaccount.com"
-}
-
 # Allow the Cloud Run SA to invoke other Cloud Run services (e.g. inspector-app calling the Go API)
 resource "google_project_iam_member" "run_invoker" {
   project = var.project_id
   role    = "roles/run.invoker"
-  member  = "serviceAccount:${google_service_account.cloud_run.email}"
-}
-
-resource "google_project_iam_member" "run_cloudsql_client" {
-  project = var.project_id
-  role    = "roles/cloudsql.client"
   member  = "serviceAccount:${google_service_account.cloud_run.email}"
 }
 

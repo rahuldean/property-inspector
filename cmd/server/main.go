@@ -42,6 +42,8 @@ func main() {
 		inspector.WithBaseURL(litellmURL),
 		inspector.WithModel(model),
 		inspector.WithAPIKey(os.Getenv("LITELLM_API_KEY")),
+		inspector.WithCFAccessClientID(os.Getenv("CF_ACCESS_CLIENT_ID")),
+		inspector.WithCFAccessClientSecret(os.Getenv("CF_ACCESS_CLIENT_SECRET")),
 	)
 
 	var bqLogger *BQLogger

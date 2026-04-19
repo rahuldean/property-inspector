@@ -41,14 +41,6 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Get LiteLLM URL
-        run: |
-          LITELLM_URL=$(gcloud run services describe litellm-proxy \
-            --region=${{ secrets.GCP_REGION }} \
-            --project=${{ secrets.GCP_PROJECT_ID }} \
-            --format='value(status.url)')
-          echo "LITELLM_URL=$LITELLM_URL" >> $GITHUB_ENV
-
       - name: Deploy API to Cloud Run
         run: |
           gcloud run deploy property-inspector-api \
@@ -60,8 +52,9 @@ jobs:
             --min-instances=0 \
             --max-instances=10 \
             --port=8080 \
-            --set-env-vars=LITELLM_URL=${{ env.LITELLM_URL }},LITELLM_MODEL=inspector,GOOGLE_CLOUD_PROJECT=${{ secrets.GCP_PROJECT_ID }} \
-            --update-secrets=LITELLM_API_KEY=LITELLM_VIRTUAL_KEY:latest \
+            --vpc-egress=private-ranges-only \
+            --set-env-vars=LITELLM_URL=https://aigw.labmox.com,LITELLM_MODEL=inspector,GOOGLE_CLOUD_PROJECT=${{ secrets.GCP_PROJECT_ID }} \
+            --update-secrets=LITELLM_API_KEY=LITELLM_API_KEY:latest,CF_ACCESS_CLIENT_ID=CF_ACCESS_CLIENT_ID:latest,CF_ACCESS_CLIENT_SECRET=CF_ACCESS_CLIENT_SECRET:latest \
             --quiet
 
       - name: Print live URL
