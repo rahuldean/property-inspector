@@ -10,7 +10,24 @@ cp .env.example .env   # set LITELLM_MASTER_KEY and your model API key
 docker compose up --build
 ```
 
-This starts the LiteLLM proxy on port 4000 and the API server on port 6000.
+This starts a local LiteLLM proxy on port 4000 and the API server on port 6000.
+
+## LiteLLM proxy
+
+The API routes all LLM calls through a LiteLLM instance. For local dev, `docker compose` spins one up automatically. For production, you can run LiteLLM anywhere -- the API just needs `LITELLM_URL` pointed at it.
+
+If your LiteLLM instance is behind a Cloudflare Access policy, set the service token credentials so the API can reach it:
+
+```bash
+LITELLM_URL=https://your-litellm-host
+LITELLM_API_KEY=sk-virtual-...       # virtual key from LiteLLM admin UI
+CF_ACCESS_CLIENT_ID=...              # CF-Access-Client-Id service token
+CF_ACCESS_CLIENT_SECRET=...          # CF-Access-Client-Secret service token
+```
+
+If your LiteLLM instance is not behind Cloudflare Access, only `LITELLM_URL` and `LITELLM_API_KEY` are needed. `CF_ACCESS_CLIENT_ID` and `CF_ACCESS_CLIENT_SECRET` are ignored when empty.
+
+Models and API keys are managed through the LiteLLM admin UI. Create a virtual key there and use it as `LITELLM_API_KEY`. Set `LITELLM_MODEL` to change which model alias the API uses (default: `inspector`).
 
 ## GCP deployment
 
@@ -22,19 +39,18 @@ terraform init
 terraform apply
 ```
 
-Note: Use a `terraform.tfvars` file to set variables. `project_number` is required (no default) -- find it on the GCP Console home page.
+`terraform.tfvars` only needs two variables:
 
 ```hcl
 # terraform/terraform.tfvars  (gitignored)
-project_id     = "your-project-id"
-region         = "us-east1"
-project_number = "123456789012"
+project_id = "your-project-id"
+region     = "us-east1"
 ```
 
 Enable required APIs before running `terraform apply`:
 
 ```bash
-gcloud services enable compute.googleapis.com bigquery.googleapis.com --project=YOUR_PROJECT_ID
+gcloud services enable bigquery.googleapis.com --project=YOUR_PROJECT_ID
 ```
 
 After apply, copy the output values into your GitHub repository secrets:
@@ -44,34 +60,22 @@ After apply, copy the output values into your GitHub repository secrets:
 * `GCP_SERVICE_ACCOUNT` - value of `github_actions_service_account`
 * `GCP_WORKLOAD_IDENTITY_PROVIDER` - value of `workload_identity_provider`
 
-Seed the master key in Secret Manager:
+Populate the secrets in GCP Secret Manager:
 
 ```bash
-echo -n "sk-litellm-master-..." | gcloud secrets versions add LITELLM_MASTER_KEY --data-file=-
+# Virtual key from LiteLLM admin UI
+echo -n "sk-virtual-..." | gcloud secrets versions add LITELLM_API_KEY --data-file=- --project=YOUR_PROJECT_ID
+
+# Cloudflare Access service token (if your LiteLLM is behind CF Access)
+echo -n "your-client-id" | gcloud secrets versions add CF_ACCESS_CLIENT_ID --data-file=- --project=YOUR_PROJECT_ID
+echo -n "your-client-secret" | gcloud secrets versions add CF_ACCESS_CLIENT_SECRET --data-file=- --project=YOUR_PROJECT_ID
 ```
 
 ### Deploying
 
 - **API**: triggers automatically on every push to `main`
-- **LiteLLM proxy**: triggers on push to `main` when `litellm/**` changes, or manually via the `deploy-litellm` workflow in GitHub Actions
 
-Deploy LiteLLM first on initial setup.
-
-### Post-deploy: add models and create a virtual key
-
-Access the LiteLLM admin UI via the Cloud Run proxy:
-
-```bash
-gcloud run services proxy litellm-proxy --region=REGION --project=PROJECT_ID
-```
-
-Open `http://localhost:8080/ui`, log in with your master key, add your model API keys and configure models, then create a virtual key for the API service. Store it:
-
-```bash
-echo -n "sk-virtual-..." | gcloud secrets versions add LITELLM_VIRTUAL_KEY --data-file=-
-```
-
-Then trigger the `deploy-api` workflow to pick up the new secret.
+Set `LITELLM_URL` in `.github/workflows/deploy-api.yml` to your LiteLLM instance URL before deploying.
 
 ## BigQuery logging
 
@@ -116,18 +120,18 @@ Response: `ComparisonReport` JSON with `resolved_issues[]`, `new_issues[]`, `unc
 
 Returns `{"status": "ok"}`.
 
-## Switching models
-
-Models and API keys are managed through the LiteLLM admin UI (changes persist in Cloud SQL). Set `LITELLM_MODEL` on the API Cloud Run service to switch which model alias it uses.
-
 ## Using as a Go library
 
 ```go
 import "github.com/rahuldean/property-inspector/inspector"
 
 client := inspector.NewClient(
-    inspector.WithBaseURL("http://localhost:4000"),
+    inspector.WithBaseURL("https://your-litellm-host"),
     inspector.WithModel("inspector"),
+    inspector.WithAPIKey("sk-virtual-..."),
+    // Only needed if LiteLLM is behind Cloudflare Access:
+    inspector.WithCFAccessClientID("..."),
+    inspector.WithCFAccessClientSecret("..."),
 )
 
 result, err := client.AnalyzeRoom(ctx, "photo.jpg", inspector.RoomMeta{
@@ -135,8 +139,3 @@ result, err := client.AnalyzeRoom(ctx, "photo.jpg", inspector.RoomMeta{
     FloorUnit: "Unit 4B",
 })
 ```
-
-## FAQ
-
-**Why is LiteLLM pinned to a specific version?**
-`main-latest` tracks the raw tip of LiteLLM's main branch and picks up unreleased bugs. The image is pinned to `v1.81.3-stable` (LiteLLM's own curated tag) to avoid issues like `vector_store_ids: Extra inputs are not permitted` that appeared in recent main builds.
