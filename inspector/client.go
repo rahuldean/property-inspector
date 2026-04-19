@@ -6,12 +6,14 @@ import (
 )
 
 type Client struct {
-	baseURL    string
-	apiKey     string
-	model      string
-	timeout    time.Duration
-	maxRetries int
-	httpClient *http.Client
+	baseURL              string
+	apiKey               string
+	model                string
+	timeout              time.Duration
+	maxRetries           int
+	httpClient           *http.Client
+	cfAccessClientID     string
+	cfAccessClientSecret string
 }
 
 type Option func(*Client)
@@ -54,4 +56,12 @@ func WithMaxRetries(n int) Option {
 
 func WithHTTPClient(hc *http.Client) Option {
 	return func(c *Client) { c.httpClient = hc }
+}
+
+func WithCFAccessClientID(id string) Option {
+	return func(c *Client) { c.cfAccessClientID = id }
+}
+
+func WithCFAccessClientSecret(secret string) Option {
+	return func(c *Client) { c.cfAccessClientSecret = secret }
 }

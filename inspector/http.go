@@ -110,6 +110,12 @@ func (c *Client) sendChat(ctx context.Context, systemPrompt string, parts []cont
 		if c.apiKey != "" {
 			req.Header.Set("Authorization", "Bearer "+c.apiKey)
 		}
+		if c.cfAccessClientID != "" {
+			req.Header.Set("CF-Access-Client-Id", c.cfAccessClientID)
+		}
+		if c.cfAccessClientSecret != "" {
+			req.Header.Set("CF-Access-Client-Secret", c.cfAccessClientSecret)
+		}
 
 		resp, err := c.httpClient.Do(req)
 		if err != nil {
